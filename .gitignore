@@ -1,0 +1,18 @@
+# Python
+venv/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# Node
+node_modules/
+
+# Secrets
+.env
+
+# Big data files and trained models
+data/
+*.joblib
+
+# OS files
+.DS_Store
