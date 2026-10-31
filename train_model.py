@@ -1,3 +1,4 @@
+import sys
 import pandas as pd, numpy as np
 from pathlib import Path
 from sklearn.compose import ColumnTransformer
@@ -8,7 +9,9 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
 DATA = Path("data")
-df = pd.read_csv(DATA / "features_v1.csv")
+fname = sys.argv[1] if len(sys.argv) > 1 else "features_v2.csv"
+print("Using", fname)
+df = pd.read_csv(DATA / fname)
 
 # ---------- Target ----------
 df["log_value"] = np.log1p(df["market_value"])
@@ -18,6 +21,10 @@ num_cols = ["age", "minutes", "apps", "full_games", "goals", "assists", "yellows
             "goals_p90", "assists_p90", "ga_p90", "big_ga_p90", "big_minutes", "cl_minutes",
             "form_ga_p90", "form_vs_season", "minutes_share", "team_ga_share",
             "avg_own_position", "height_in_cm"]
+# club-strength features exist only in features_v2.csv
+club_cols = ["log_club_value_excl", "club_value_rel_league", "prev_season_position",
+             "newly_promoted", "european_tier"]
+num_cols += [c for c in club_cols if c in df.columns]
 cat_cols = ["position", "sub_position", "league", "foot"]
 X = df[num_cols + cat_cols]
 y = df["log_value"]
