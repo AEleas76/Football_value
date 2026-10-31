@@ -9,7 +9,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
 DATA = Path("data")
-fname = sys.argv[1] if len(sys.argv) > 1 else "features_v2.csv"
+fname = sys.argv[1] if len(sys.argv) > 1 else "features_v3.csv"
 print("Using", fname)
 df = pd.read_csv(DATA / fname)
 
@@ -24,7 +24,11 @@ num_cols = ["age", "minutes", "apps", "full_games", "goals", "assists", "yellows
 # club-strength features exist only in features_v2.csv
 club_cols = ["log_club_value_excl", "club_value_rel_league", "prev_season_position",
              "newly_promoted", "european_tier"]
-num_cols += [c for c in club_cols if c in df.columns]
+# multi-season history features exist only in features_v3.csv
+hist_cols = ["hist_goals_p90_3y", "hist_ga_p90_3y", "hist_minutes_3y", "hist_big_ga_p90_3y",
+             "hist_cl_minutes_3y", "min_prev1", "min_prev2", "ga_p90_prev1",
+             "minutes_trend", "n_prior_seasons_450"]
+num_cols += [c for c in club_cols + hist_cols if c in df.columns]
 cat_cols = ["position", "sub_position", "league", "foot"]
 X = df[num_cols + cat_cols]
 y = df["log_value"]
