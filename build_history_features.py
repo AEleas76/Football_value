@@ -13,8 +13,12 @@ apps  = pd.read_csv(DATA / "appearances.csv",
                              "goals", "assists", "minutes_played"])
 
 # ---------- 1. Player-season table from ALL matches (any club, any league, lookback to 2017) ----------
-g = games[["game_id", "season", "competition_type", "home_club_id", "away_club_id",
-           "home_club_position", "away_club_position"]]
+g = games[["game_id", "season", "competition_id", "competition_type", "home_club_id", "away_club_id",
+           "home_club_position", "away_club_position", "date"]].copy()
+is_wc_2026 = (g.competition_id == "FIWC") & (pd.to_datetime(g.date).dt.year == 2026)
+g.loc[is_wc_2026, "season"] = 2025
+g = g.drop(columns=["competition_id", "date"])
+
 a = apps.merge(g, on="game_id", how="inner")
 a = a[a.season >= 2017]
 is_home = a.player_club_id == a.home_club_id

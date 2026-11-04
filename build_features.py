@@ -16,10 +16,15 @@ apps    = pd.read_csv(DATA/"appearances.csv", parse_dates=["date"],
 
 # ---------- 2. Target: one valuation per player per season ----------
 # Season S runs 1 Jul S -> 30 Jun S+1. Target = last valuation in Jan-Jun of S+1.
+# Exception: The 2026 World Cup concluded on 19 July 2026, so July 2026 post-tournament valuations
+# count as the season 2025 end-of-season valuation. For ongoing season (>= 2026), take the latest available valuation.
 v = vals[vals.player_club_domestic_competition_id.isin(TOP5)].copy()
-v["season"] = np.where(v.date.dt.month >= 7, v.date.dt.year, v.date.dt.year - 1)
-v = v[(v.date.dt.month <= 6) & (v.date.dt.month >= 1) & (v.season >= FIRST_SEASON)]
-v = v.sort_values("date").groupby(["player_id","season"], as_index=False).last()
+is_post_wc_2026_val = (v.date.dt.year == 2026) & (v.date.dt.month == 7)
+v["season"] = np.where(is_post_wc_2026_val, 2025, np.where(v.date.dt.month >= 7, v.date.dt.year, v.date.dt.year - 1))
+v = v[v.season >= FIRST_SEASON]
+v_completed = v[(v.season < 2026) & (((v.date.dt.month <= 6) & (v.date.dt.month >= 1)) | ((v.date.dt.year == 2026) & (v.date.dt.month == 7)))]
+v_ongoing = v[v.season >= 2026]
+v = pd.concat([v_completed, v_ongoing]).sort_values("date").groupby(["player_id","season"], as_index=False).last()
 v = v.rename(columns={"market_value_in_eur":"market_value",
                       "current_club_id":"club_id",
                       "player_club_domestic_competition_id":"league",
@@ -29,7 +34,12 @@ v = v[v.market_value > 0]
 
 # ---------- 3. Match-level table ----------
 g = games[["game_id","season","competition_id","competition_type",
-           "home_club_id","away_club_id","home_club_position","away_club_position"]]
+           "home_club_id","away_club_id","home_club_position","away_club_position","date"]].copy()
+# Count the entire 2026 FIFA World Cup as part of the 2025–26 season (season 2025)
+is_wc_2026 = (g.competition_id == "FIWC") & (pd.to_datetime(g.date).dt.year == 2026)
+g.loc[is_wc_2026, "season"] = 2025
+g = g.drop(columns=["date"])
+
 a = apps.merge(g, on="game_id", how="inner", suffixes=("","_g"))
 a = a[a.season >= FIRST_SEASON]
 is_home = a.player_club_id == a.home_club_id
@@ -86,8 +96,9 @@ df = df.merge(players[["player_id","name","date_of_birth","position","sub_positi
 df["age"] = (df.valuation_date - df.date_of_birth).dt.days / 365.25
 df = df.drop(columns=["date_of_birth"])
 
-# Filter: need some playing time
-df = df[df.minutes >= 450].reset_index(drop=True)
+# Filter: need playing time (450+ mins for completed seasons, 180+ mins for ongoing season)
+min_mins = np.where(df.season >= 2026, 180, 450)
+df = df[df.minutes >= min_mins].reset_index(drop=True)
 
 df.to_csv(DATA/"features_v1.csv", index=False)
 print(df.shape)

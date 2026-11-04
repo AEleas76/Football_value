@@ -1,7 +1,11 @@
 import { Link, useParams } from "react-router-dom";
+import Avatar from "../components/Avatar.jsx";
+import FiveYearStats from "../components/FiveYearStats.jsx";
 import { getHealth, getPlayer } from "../api";
 import { useApi } from "../hooks";
-import { LEAGUES, gapClass, gapText, money, niceStep, num, seasonLabel, signedPct } from "../format";
+import {
+  LEAGUES, ageFrom, cap, contractLeft, formatDate, gapClass, gapText, money, niceStep, num, seasonLabel, signedPct,
+} from "../format";
 
 function RangeBar({ low, high, estimate, market }) {
   const lo = Math.min(low, market) * 0.85;
@@ -92,6 +96,15 @@ function HistoryChart({ history, season, estimate, low, high }) {
   );
 }
 
+function Fact({ label, children }) {
+  return (
+    <div className="fact">
+      <dt>{label}</dt>
+      <dd>{children}</dd>
+    </div>
+  );
+}
+
 export default function Player() {
   const { id } = useParams();
   const { data: p, error, loading } = useApi((signal) => getPlayer(id, signal), [id]);
@@ -107,37 +120,60 @@ export default function Player() {
   }
   if (loading || !p) return <p className="muted">Loading…</p>;
 
-  const s = p.stats;
-  const tiles = [
-    ["Minutes", s.minutes],
-    ["Appearances", s.apps],
-    ["Goals", s.goals],
-    ["Assists", s.assists],
-    ["Goals + assists per 90", num(s.ga_p90)],
-    ["Per 90 vs top-6 teams", num(s.big_ga_p90)],
-    ["Per 90, last 10 games", num(s.form_ga_p90)],
-    ["Per 90, last 3 seasons", num(s.hist_ga_p90_3y)],
-  ];
+  const currentClub = p.current_club ?? p.club;
+  const movedClub = p.current_club && p.current_club !== p.club;
+  const contract = contractLeft(p.contract_expiration);
+  const age = ageFrom(p.date_of_birth) ?? Math.round(p.age);
+  const born = [p.city_of_birth, p.country_of_birth].filter(Boolean).join(", ");
 
   return (
     <>
-      <header className="player-head">
-        <h1>{p.name}</h1>
-        <p className="muted">
-          {p.club} · {LEAGUES[p.league] ?? p.league} · {p.sub_position ?? p.position} · {Math.round(p.age)} years old
-          {p.nationality ? ` · ${p.nationality}` : ""}
-        </p>
-      </header>
+      <section className="profile">
+        <Avatar src={p.image_url} name={p.name} size={160} shape="portrait" />
+        <div className="profile-main">
+          <div className="chips">
+            <span className="chip">{p.sub_position ?? p.position}</span>
+            <span className="chip chip-light">{LEAGUES[p.league] ?? p.league}</span>
+          </div>
+          <h1>{p.name}</h1>
+          <p className="profile-club">
+            {currentClub}
+            {movedClub && <span className="muted"> · {seasonLabel(p.season)} season at {p.club}</span>}
+          </p>
+          <dl className="facts">
+            <Fact label="Age">{age} <span className="muted">({formatDate(p.date_of_birth)})</span></Fact>
+            <Fact label="Nationality">{p.nationality ?? "–"}</Fact>
+            <Fact label="Born">{born || "–"}</Fact>
+            <Fact label="Height">{p.height_cm ? `${p.height_cm} cm` : "–"}</Fact>
+            <Fact label="Preferred foot">{p.foot ? cap(p.foot) : "–"}</Fact>
+            <Fact label="Contract until">
+              {p.contract_expiration ? formatDate(p.contract_expiration) : "Not available"}{" "}
+              {contract && <span className={`pill ${contract.tone}`}>{contract.text}</span>}
+            </Fact>
+            <Fact label="International">
+              {p.international_caps !== null && p.international_caps !== undefined
+                ? `${p.international_caps} caps, ${p.international_goals ?? 0} goals`
+                : "–"}
+            </Fact>
+            <Fact label="Peak value">{p.highest_market_value ? money(p.highest_market_value) : "–"}</Fact>
+          </dl>
+          {p.profile_url && (
+            <a className="ext" href={p.profile_url} target="_blank" rel="noreferrer">
+              Transfermarkt profile ↗
+            </a>
+          )}
+        </div>
+      </section>
 
       <section className="card">
         <div className="headline">
           <div>
-            <div className="label">Model estimate</div>
-            <div className="big">{money(p.predicted_value)}</div>
+            <div className="label">Market value</div>
+            <div className="big">{money(p.market_value)}</div>
           </div>
           <div>
-            <div className="label">Transfermarkt value</div>
-            <div className="big">{money(p.market_value)}</div>
+            <div className="label">Model estimate</div>
+            <div className="big est">{money(p.predicted_value)}</div>
           </div>
           <div>
             <div className="label">Model vs market</div>
@@ -178,18 +214,12 @@ export default function Player() {
       </section>
 
       <section className="card">
-        <h2>{seasonLabel(p.season)} season</h2>
-        <div className="tiles">
-          {tiles.map(([label, value]) => (
-            <div className="tile" key={label}>
-              <div className="tile-value">{value ?? "–"}</div>
-              <div className="label">{label}</div>
-            </div>
-          ))}
-        </div>
+        <h2>Last 5 seasons</h2>
+        <FiveYearStats playerId={p.player_id} />
         <p className="muted small">
           The model sees goals, assists, minutes, age, club strength and league, but not passing, defending
           or goalkeeping statistics, so it is less reliable for defenders and goalkeepers.
+          {p.stats.ga_p90 !== null && ` This season: ${num(p.stats.ga_p90)} goals + assists per 90.`}
         </p>
       </section>
 

@@ -21,9 +21,10 @@ num_cols = ["age", "minutes", "apps", "full_games", "goals", "assists", "yellows
             "goals_p90", "assists_p90", "ga_p90", "big_ga_p90", "big_minutes", "cl_minutes",
             "form_ga_p90", "form_vs_season", "minutes_share", "team_ga_share",
             "avg_own_position", "height_in_cm"]
-# club-strength features exist only in features_v2.csv
+# club-strength and transfer stepup features
 club_cols = ["log_club_value_excl", "club_value_rel_league", "prev_season_position",
-             "newly_promoted", "european_tier"]
+             "newly_promoted", "european_tier",
+             "club_stepup_ratio", "moved_to_bigger_club", "recent_transfer_fee"]
 # multi-season history features exist only in features_v3.csv
 hist_cols = ["hist_goals_p90_3y", "hist_ga_p90_3y", "hist_minutes_3y", "hist_big_ga_p90_3y",
              "hist_cl_minutes_3y", "min_prev1", "min_prev2", "ga_p90_prev1",

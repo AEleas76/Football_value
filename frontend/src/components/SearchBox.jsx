@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { searchPlayers } from "../api";
 import { money } from "../format";
+import Avatar from "./Avatar.jsx";
+import { SearchIcon } from "./Icons.jsx";
 
-export default function SearchBox({ onSelect, placeholder = "Search a player…", autoFocus = false }) {
+export default function SearchBox({ onSelect, placeholder = "Search a player…", autoFocus = false, variant = "default" }) {
   const [q, setQ] = useState("");
   const [results, setResults] = useState([]);
   const [open, setOpen] = useState(false);
@@ -70,7 +72,8 @@ export default function SearchBox({ onSelect, placeholder = "Search a player…"
   const showEmpty = open && !error && q.trim().length >= 2 && results.length === 0;
 
   return (
-    <div className="search" ref={boxRef}>
+    <div className={`search ${variant === "hero" ? "search-hero" : ""}`} ref={boxRef}>
+      <SearchIcon className="search-icon" />
       <input
         type="search"
         value={q}
@@ -95,16 +98,19 @@ export default function SearchBox({ onSelect, placeholder = "Search a player…"
                 choose(p);
               }}
             >
-              <span className="search-name">{p.name}</span>
-              <span className="muted">
-                {p.club} · {p.position} · {Math.round(p.age)}
+              <Avatar src={p.image_url} name={p.name} size={38} />
+              <span className="search-text">
+                <span className="search-name">{p.name}</span>
+                <span className="muted small">
+                  {p.club} · {p.position} · {Math.round(p.age)}
+                </span>
               </span>
               <span className="search-value">{money(p.market_value)}</span>
             </li>
           ))}
         </ul>
       )}
-      {showEmpty && <div className="search-list search-empty">No player found (only 450+ minutes in 2025/26)</div>}
+      {showEmpty && <div className="search-list search-empty">No player found (only players with 450+ minutes in 2025/26)</div>}
       {error && <div className="search-list search-empty error">{error}</div>}
     </div>
   );

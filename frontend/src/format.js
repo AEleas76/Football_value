@@ -50,3 +50,43 @@ export function niceStep(raw) {
   const m = raw / pow;
   return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 5 ? 5 : 10) * pow;
 }
+
+// "Erling Haaland" -> "EH"
+export function initials(name) {
+  const parts = String(name || "").trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  if (parts.length === 1) return parts[0][0].toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+// "2028-06-30" -> "30 Jun 2028"
+export function formatDate(iso) {
+  if (!iso) return "–";
+  const d = new Date(iso + "T00:00:00Z");
+  return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+}
+
+// age in whole years from "YYYY-MM-DD"
+export function ageFrom(iso, now = new Date()) {
+  if (!iso) return null;
+  const [y, m, d] = iso.split("-").map(Number);
+  const month = now.getUTCMonth() + 1;
+  let age = now.getUTCFullYear() - y;
+  if (month < m || (month === m && now.getUTCDate() < d)) age -= 1;
+  return age;
+}
+
+// time left on a contract: { text, tone } or null when unknown
+export function contractLeft(iso, now = new Date()) {
+  if (!iso) return null;
+  const [y, m, d] = iso.split("-").map(Number);
+  let months = (y - now.getUTCFullYear()) * 12 + (m - (now.getUTCMonth() + 1));
+  if (d < now.getUTCDate()) months -= 1;
+  if (months < 0) return { text: "date passed", tone: "bad" };
+  const years = Math.floor(months / 12);
+  const rest = months % 12;
+  const text = years > 0 ? `${years}y ${rest}m left` : `${rest}m left`;
+  return { text, tone: months <= 12 ? "warn" : "ok" };
+}
+
+export const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);

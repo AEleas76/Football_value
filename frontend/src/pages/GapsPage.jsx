@@ -12,8 +12,9 @@ export default function GapsPage() {
     <>
       <h1>Model vs market</h1>
       <p className="muted">
-        Where the model’s estimate differs most from the Transfermarkt value. Players below €5m are
-        left out, because small values produce huge percentage gaps.
+        The clearest disagreements between the model and the Transfermarkt value: players whose market
+        value falls outside the model’s 80% range, ranked by the size of the gap in euros. Players
+        below €10m are left out, because small values produce huge percentage gaps.
       </p>
 
       <div className="filters">

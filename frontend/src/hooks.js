@@ -18,3 +18,13 @@ export function useApi(loader, deps) {
 
   return state;
 }
+
+// value that only changes after the user stops typing for `ms` milliseconds
+export function useDebounced(value, ms = 300) {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const timer = setTimeout(() => setDebounced(value), ms);
+    return () => clearTimeout(timer);
+  }, [value, ms]);
+  return debounced;
+}

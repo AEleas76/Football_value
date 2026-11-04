@@ -30,3 +30,6 @@ export const searchPlayers = (q, signal) => get("/api/players/search", { q, limi
 export const getPlayer = (id, signal) => get(`/api/players/${id}`, {}, signal);
 export const comparePlayers = (a, b, signal) => get("/api/compare", { a, b }, signal);
 export const getGaps = (params, signal) => get("/api/gaps", params, signal);
+export const getFeatured = (limit, signal) => get("/api/featured", { limit }, signal);
+export const getPlayerStats = (id, signal) => get(`/api/players/${id}/stats`, {}, signal);
+export const getLeaders = (season, params, signal) => get(`/api/seasons/${season}/leaders`, params, signal);

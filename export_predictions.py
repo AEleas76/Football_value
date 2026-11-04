@@ -13,12 +13,11 @@ from xgboost import XGBRegressor
 
 DATA, API = Path("data"), Path("api")
 API.mkdir(exist_ok=True)
-TEST_SEASON = 2025          # latest season = honest out-of-sample predictions
-
 df = pd.read_csv(DATA / "features_v3.csv")
 clubs = pd.read_csv(DATA / "clubs.csv")[["club_id", "name"]].rename(columns={"name": "club_name"})
 df = df.merge(clubs, on="club_id", how="left")
 df["log_value"] = np.log1p(df.market_value)
+TEST_SEASON = int(df.season.max())          # latest season = honest out-of-sample predictions
 
 # ---------- Features (keep in sync with train_model.py) ----------
 num_cols = ["age", "minutes", "apps", "full_games", "goals", "assists", "yellows", "reds",
@@ -27,6 +26,7 @@ num_cols = ["age", "minutes", "apps", "full_games", "goals", "assists", "yellows
             "avg_own_position", "height_in_cm",
             "log_club_value_excl", "club_value_rel_league", "prev_season_position",
             "newly_promoted", "european_tier",
+            "club_stepup_ratio", "moved_to_bigger_club", "recent_transfer_fee",
             "hist_goals_p90_3y", "hist_ga_p90_3y", "hist_minutes_3y", "hist_big_ga_p90_3y",
             "hist_cl_minutes_3y", "min_prev1", "min_prev2", "ga_p90_prev1",
             "minutes_trend", "n_prior_seasons_450"]
@@ -79,6 +79,7 @@ GROUPS = {
     "Discipline": ["yellows", "reds"],
     "Club strength": ["log_club_value_excl", "club_value_rel_league", "avg_own_position",
                       "prev_season_position", "newly_promoted"],
+    "Recent big-club move": ["club_stepup_ratio", "moved_to_bigger_club", "recent_transfer_fee"],
     "European football": ["european_tier", "cl_minutes", "hist_cl_minutes_3y"],
     "3-season track record": ["hist_goals_p90_3y", "hist_ga_p90_3y", "hist_big_ga_p90_3y", "ga_p90_prev1"],
     "Playing time history": ["hist_minutes_3y", "min_prev1", "min_prev2", "minutes_trend", "n_prior_seasons_450"],

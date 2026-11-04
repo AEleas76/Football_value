@@ -76,13 +76,36 @@ eu_tier = eu_rows.groupby(["club_id", "season"], as_index=False).tier.max().rena
 df = df.merge(eu_tier, on=["club_id", "season"], how="left")
 df["european_tier"] = df.european_tier.fillna(0)                # 0 none, 1 Conf, 2 EL, 3 CL
 
+# ---------- 4. Recent transfers: boost for players moving to bigger clubs ----------
+trans = pd.read_csv(DATA / "transfers.csv", parse_dates=["transfer_date"])
+trans["season"] = trans.transfer_season.str[:2].astype(int) + 2000
+
+cv_lookup = club_tot.set_index(["club_id", "season"])["club_value_total"].to_dict()
+
+def get_cv(club_id, season):
+    if pd.isna(club_id): return 0.0
+    return cv_lookup.get((int(club_id), season), cv_lookup.get((int(club_id), season - 1), 20_000_000.0))
+
+t_recent = trans.sort_values("transfer_date").groupby(["player_id", "season"], as_index=False).last()
+t_recent["val_to"] = [get_cv(c, s) for c, s in zip(t_recent.to_club_id, t_recent.season)]
+t_recent["val_from"] = [get_cv(c, s) for c, s in zip(t_recent.from_club_id, t_recent.season)]
+t_recent["club_stepup_ratio"] = (np.log1p(t_recent.val_to) - np.log1p(t_recent.val_from)).clip(lower=0.0)
+t_recent["moved_to_bigger_club"] = ((t_recent.club_stepup_ratio >= 0.30) & (t_recent.val_to > t_recent.val_from)).astype(int)
+t_recent["recent_transfer_fee"] = np.log1p(t_recent.transfer_fee.fillna(0).clip(lower=0))
+
+stepup_cols = ["player_id", "season", "club_stepup_ratio", "moved_to_bigger_club", "recent_transfer_fee"]
+df = df.merge(t_recent[stepup_cols], on=["player_id", "season"], how="left")
+df["club_stepup_ratio"] = df.club_stepup_ratio.fillna(0.0)
+df["moved_to_bigger_club"] = df.moved_to_bigger_club.fillna(0).astype(int)
+df["recent_transfer_fee"] = df.recent_transfer_fee.fillna(0.0)
+
 df = df.drop(columns=["own_snap_value", "league_median_value", "club_value_total"])
 df.to_csv(DATA / "features_v2.csv", index=False)
 
 print(df.shape)
 print(df[["log_club_value_excl", "club_value_rel_league", "prev_season_position",
-          "newly_promoted", "european_tier"]].isna().mean().round(3))
-print(df.european_tier.value_counts().sort_index())
+          "newly_promoted", "european_tier", "club_stepup_ratio", "moved_to_bigger_club", "recent_transfer_fee"]].isna().mean().round(3))
+print("Moved to bigger club counts:\n", df.groupby(["season", "moved_to_bigger_club"]).size())
 clubs = pd.read_csv(DATA / "clubs.csv")[["club_id", "name"]].rename(columns={"name": "club_name"})
 chk = df[df.season == 2025].drop_duplicates("club_id").merge(clubs, on="club_id")
 cols = ["club_name", "league", "club_value_rel_league", "prev_season_position", "european_tier"]
