@@ -9,7 +9,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
 DATA = Path("data")
-fname = sys.argv[1] if len(sys.argv) > 1 else "features_v3.csv"
+fname = sys.argv[1] if len(sys.argv) > 1 else "features_v4.csv"
 print("Using", fname)
 df = pd.read_csv(DATA / fname)
 
@@ -21,15 +21,16 @@ num_cols = ["age", "minutes", "apps", "full_games", "goals", "assists", "yellows
             "goals_p90", "assists_p90", "ga_p90", "big_ga_p90", "big_minutes", "cl_minutes",
             "form_ga_p90", "form_vs_season", "minutes_share", "team_ga_share",
             "avg_own_position", "height_in_cm"]
-# club-strength and transfer stepup features
+# club-strength features exist only in features_v2.csv
 club_cols = ["log_club_value_excl", "club_value_rel_league", "prev_season_position",
-             "newly_promoted", "european_tier",
-             "club_stepup_ratio", "moved_to_bigger_club", "recent_transfer_fee"]
+             "newly_promoted", "european_tier"]
 # multi-season history features exist only in features_v3.csv
 hist_cols = ["hist_goals_p90_3y", "hist_ga_p90_3y", "hist_minutes_3y", "hist_big_ga_p90_3y",
              "hist_cl_minutes_3y", "min_prev1", "min_prev2", "ga_p90_prev1",
              "minutes_trend", "n_prior_seasons_450"]
-num_cols += [c for c in club_cols + hist_cols if c in df.columns]
+# transfer / club-move features exist only in features_v4.csv
+move_cols = ["months_since_move", "recent_move", "club_jump", "moved_up", "last_fee_log"]
+num_cols += [c for c in club_cols + hist_cols + move_cols if c in df.columns]
 cat_cols = ["position", "sub_position", "league", "foot"]
 X = df[num_cols + cat_cols]
 y = df["log_value"]
@@ -85,9 +86,19 @@ report("Boost   test  (2025)", y[test],  gb.predict(Xt_test))
 # ---------- Error by position group (test season) ----------
 tmp = df[test].copy()
 tmp["pred_log"] = gb.predict(Xt_test)
-tmp["abs_pct_err"] = np.abs(np.expm1(tmp.pred_log) - tmp.market_value) / tmp.market_value
+tmp["pred_value_raw"] = np.expm1(tmp.pred_log)
+tmp["abs_pct_err"] = np.abs(tmp.pred_value_raw - tmp.market_value) / tmp.market_value
 print("\nMedian % error by position (test season):")
 print((tmp.groupby("position").abs_pct_err.median() * 100).round(1))
+
+# ---------- Error for players who recently changed club (test season) ----------
+if "recent_move" in df.columns:
+    for label, mask in [("no recent move", tmp.recent_move == 0), ("moved in last 12 months", tmp.recent_move == 1),
+                        ("moved to a much richer squad", tmp.moved_up == 1)]:
+        sub = tmp[mask]
+        bias = np.median(np.log(sub.pred_value_raw / sub.market_value)) if len(sub) else float("nan")
+        print(f"  {label:<30} n={len(sub):4d}  median % error={sub.abs_pct_err.median()*100:5.1f}%  "
+              f"typical bias={np.expm1(bias)*100:+5.1f}% (negative = model too low)")
 
 # ---------- Which features matter? (permutation importance on the test season) ----------
 from sklearn.inspection import permutation_importance

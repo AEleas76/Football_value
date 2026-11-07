@@ -90,3 +90,22 @@ export function contractLeft(iso, now = new Date()) {
 }
 
 export const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
+
+// Transfermarkt "header" thumbnails are small crops; the "big" version is the full portrait.
+// Returns the URLs to try in order (the last one is always the original).
+export function photoCandidates(url) {
+  if (!url) return [];
+  if (!url.includes("/portrait/header/")) return [url];
+  const big = url.replace("/portrait/header/", "/portrait/big/");
+  const list = [big];
+  const asJpg = big.replace(/\.(png|jpeg|JPG)(\?|$)/, ".jpg$2");
+  if (asJpg !== big) list.push(asJpg);
+  list.push(url);
+  return list;
+}
+
+// "2026-07" -> "Jul 2026"
+export function monthLabel(ym) {
+  if (!ym) return "–";
+  return new Date(ym + "-01T00:00:00Z").toLocaleDateString("en-GB", { month: "short", year: "numeric", timeZone: "UTC" });
+}

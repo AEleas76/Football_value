@@ -1,5 +1,5 @@
 import { Link, useParams } from "react-router-dom";
-import Avatar from "../components/Avatar.jsx";
+import PlayerPhoto from "../components/PlayerPhoto.jsx";
 import FiveYearStats from "../components/FiveYearStats.jsx";
 import { getHealth, getPlayer } from "../api";
 import { useApi } from "../hooks";
@@ -121,7 +121,7 @@ export default function Player() {
   if (loading || !p) return <p className="muted">Loading…</p>;
 
   const currentClub = p.current_club ?? p.club;
-  const movedClub = p.current_club && p.current_club !== p.club;
+  const movedClub = currentClub !== p.club;
   const contract = contractLeft(p.contract_expiration);
   const age = ageFrom(p.date_of_birth) ?? Math.round(p.age);
   const born = [p.city_of_birth, p.country_of_birth].filter(Boolean).join(", ");
@@ -129,7 +129,7 @@ export default function Player() {
   return (
     <>
       <section className="profile">
-        <Avatar src={p.image_url} name={p.name} size={160} shape="portrait" />
+        <PlayerPhoto src={p.image_url} name={p.name} width={170} />
         <div className="profile-main">
           <div className="chips">
             <span className="chip">{p.sub_position ?? p.position}</span>
@@ -168,7 +168,9 @@ export default function Player() {
       <section className="card">
         <div className="headline">
           <div>
-            <div className="label">Market value</div>
+            <div className="label">
+              Transfermarkt value{meta?.data_through ? ` (${formatDate(meta.data_through.valuations)})` : ""}
+            </div>
             <div className="big">{money(p.market_value)}</div>
           </div>
           <div>
@@ -181,6 +183,17 @@ export default function Player() {
           </div>
         </div>
         <p className="muted">The model’s estimate is {gapText(p.gap_pct)}.</p>
+        {p.move && (
+          <div className="note-box">
+            <b>Moved to {p.move.to_club}</b> ({formatDate(p.move.date)}
+            {p.move.fee ? `, fee ${money(p.move.fee)}` : ""}).{" "}
+            {p.move.applied
+              ? `The estimate accounts for the move: ${money(p.move.estimate_before)} before, ${money(p.predicted_value)} now${
+                  p.move.fee_blend ? ", blended 50/50 with the transfer fee" : ""
+                }.`
+              : "The estimate is unchanged: the market rarely adds value for moves to smaller squads or to clubs outside the top five leagues."}
+          </div>
+        )}
         <RangeBar low={p.range_low} high={p.range_high} estimate={p.predicted_value} market={p.market_value} />
         <p className="muted small">
           The 80% range is where the market value landed about 8 times in 10 for players in the model’s
@@ -214,7 +227,7 @@ export default function Player() {
       </section>
 
       <section className="card">
-        <h2>Last 5 seasons</h2>
+        <h2>Last 5 seasons and this season so far</h2>
         <FiveYearStats playerId={p.player_id} />
         <p className="muted small">
           The model sees goals, assists, minutes, age, club strength and league, but not passing, defending

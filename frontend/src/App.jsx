@@ -1,4 +1,5 @@
 import { Link, NavLink, Route, Routes, useNavigate } from "react-router-dom";
+import DataNote from "./components/DataNote.jsx";
 import { BallIcon } from "./components/Icons.jsx";
 import SearchBox from "./components/SearchBox.jsx";
 import Compare from "./pages/Compare.jsx";
@@ -44,7 +45,7 @@ export default function App() {
 
       <footer className="footer">
         Estimates come from a statistical model and are not official valuations. Market values, match data
-        and player photos originate from Transfermarkt.
+        and player photos originate from Transfermarkt. <DataNote />
       </footer>
     </>
   );

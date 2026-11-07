@@ -127,7 +127,7 @@ nav a.active { color: #fff; font-weight: 600; border-bottom-color: var(--gold); 
 @media (max-width: 900px) { .pcards { grid-template-columns: repeat(2, 1fr); } }
 .pcard { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 0 0.9rem 0.9rem; text-align: center; color: var(--text); box-shadow: var(--shadow); overflow: hidden; transition: transform 0.15s, border-color 0.15s; }
 .pcard:hover { transform: translateY(-3px); border-color: var(--pitch); text-decoration: none; }
-.pcard-photo { margin: 0 -0.9rem 0.6rem; padding: 0.9rem 0 0; background: repeating-linear-gradient(90deg, var(--pitch) 0 22px, var(--pitch-light) 22px 44px); display: flex; justify-content: center; align-items: flex-end; height: 124px; }
+.pcard-photo { margin: 0 -0.9rem 0.6rem; padding: 0.9rem 0 0; background: repeating-linear-gradient(90deg, var(--pitch) 0 22px, var(--pitch-light) 22px 44px); display: flex; justify-content: center; align-items: flex-end; height: 104px; }
 .pcard-photo .avatar { border: 3px solid #fff; margin-bottom: -2px; }
 .pcard-name { font-weight: 700; }
 .pcard-values { display: flex; justify-content: space-around; margin-top: 0.6rem; padding-top: 0.5rem; border-top: 1px dashed var(--line); }
@@ -137,7 +137,6 @@ nav a.active { color: #fff; font-weight: 600; border-bottom-color: var(--gold); 
 /* ---------- avatars ---------- */
 .avatar { border-radius: 50%; object-fit: cover; object-position: top center; background: var(--flat-soft); flex-shrink: 0; display: block; }
 .avatar-square { border-radius: 16px; }
-.avatar-portrait { border-radius: 12px; object-fit: cover; object-position: top center; aspect-ratio: 3 / 4; height: auto; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08); border: 1px solid var(--line); }
 .avatar-fallback { display: grid; place-items: center; font-weight: 700; color: #fff; background: var(--pitch); }
 
 /* ---------- search ---------- */
@@ -269,3 +268,11 @@ nav a.active { color: #fff; font-weight: 600; border-bottom-color: var(--gold); 
 .chart .bar-hit { fill: transparent; }
 .chart .bars.active .bar-hit { fill: var(--accent-soft); opacity: 0.6; }
 @media (prefers-color-scheme: dark) { .chart .bar.goals { fill: #2fa66b; } }
+
+/* ---------- full (uncropped) player photos ---------- */
+.photo { display: block; height: auto; border-radius: 14px; background: var(--flat-soft); flex-shrink: 0; }
+.photo-fallback { aspect-ratio: 3 / 4; display: grid; place-items: center; background: var(--pitch); color: #fff; font-weight: 800; font-size: 1.8rem; }
+.pcard-photo { height: auto; min-height: 90px; padding-top: 0.9rem; }
+.pcard-photo .photo { border-radius: 12px 12px 0 0; box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.2); }
+.cmp-head .photo, .mini-head .photo { border-radius: 10px; }
+.note-box { background: var(--accent-soft); border-left: 4px solid var(--pitch); border-radius: 8px; padding: 0.6rem 0.9rem; margin: 0.8rem 0; font-size: 0.92rem; }

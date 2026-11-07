@@ -1,5 +1,5 @@
 import { Link, useNavigate, useParams } from "react-router-dom";
-import Avatar from "../components/Avatar.jsx";
+import PlayerPhoto from "../components/PlayerPhoto.jsx";
 import FiveYearStats from "../components/FiveYearStats.jsx";
 import PlayerCard from "../components/PlayerCard.jsx";
 import SearchBox from "../components/SearchBox.jsx";
@@ -30,7 +30,7 @@ export default function StatsPage() {
       {p && (
         <>
           <div className="mini-head">
-            <Avatar src={p.image_url} name={p.name} size={64} />
+            <PlayerPhoto src={p.image_url} name={p.name} width={64} />
             <div>
               <h2>{p.name}</h2>
               <p className="muted">

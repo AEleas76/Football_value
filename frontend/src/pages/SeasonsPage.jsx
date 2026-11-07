@@ -14,16 +14,19 @@ const COLUMNS = [
 ];
 
 export default function SeasonsPage() {
-  const [season, setSeason] = useState(2025);
+  const [pickedSeason, setSeason] = useState(null);
   const [position, setPosition] = useState("");
   const [league, setLeague] = useState("");
   const [q, setQ] = useState("");
   const [sort, setSort] = useState("ga");
-  const [minMinutes, setMinMinutes] = useState(900);
+  const [pickedMinutes, setMinMinutes] = useState(null);
   const debouncedQ = useDebounced(q, 300);
 
   const { data: meta } = useApi((signal) => getHealth(signal), []);
   const seasons = meta ? [...meta.seasons].reverse() : [2025];
+  const partial = meta?.partial_seasons ?? [];
+  const season = pickedSeason ?? seasons[0];                       // newest season by default
+  const minMinutes = pickedMinutes ?? (partial.includes(season) ? 180 : 900);
 
   const { data, error, loading } = useApi(
     (signal) =>
@@ -37,6 +40,7 @@ export default function SeasonsPage() {
       <p className="muted">
         Pick a season and search or rank every player who played at least 450 minutes in the top five
         leagues. All competitions are counted.
+        {partial.includes(season) && ` ${seasonLabel(season)} is still in progress, so the numbers are partial.`}
       </p>
 
       <div className="filters">
@@ -44,7 +48,7 @@ export default function SeasonsPage() {
           Season
           <select value={season} onChange={(e) => setSeason(Number(e.target.value))}>
             {seasons.map((s) => (
-              <option key={s} value={s}>{seasonLabel(s)}</option>
+              <option key={s} value={s}>{seasonLabel(s)}{partial.includes(s) ? " (so far)" : ""}</option>
             ))}
           </select>
         </label>
@@ -73,6 +77,8 @@ export default function SeasonsPage() {
         <label>
           Minimum minutes
           <select value={minMinutes} onChange={(e) => setMinMinutes(Number(e.target.value))}>
+            <option value={90}>90</option>
+            <option value={180}>180</option>
             <option value={450}>450</option>
             <option value={900}>900</option>
             <option value={1800}>1800</option>

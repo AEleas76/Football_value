@@ -22,6 +22,7 @@ HISTORY, LEADERBOARD = _stats["history"], _stats["leaderboard"]
 # add photo, contract, birthplace... to every player record
 for _p in PLAYERS:
     _p.update(_stats["profiles"].get(str(_p["player_id"]), {}))
+    _p.setdefault("current_club", _p["club"])
 BY_ID = {p["player_id"]: p for p in PLAYERS}
 
 def _norm(s: str) -> str:
@@ -33,8 +34,10 @@ SEARCH = {p["player_id"]: _norm(p["name"]) for p in PLAYERS}
 LB_NORM = {season: [_norm(r["name"]) for r in rows] for season, rows in LEADERBOARD.items()}
 
 def _summary(p: dict) -> dict:
-    return {k: p.get(k) for k in ["player_id", "name", "club", "league", "position", "age", "image_url",
-                                  "market_value", "predicted_value", "gap_pct"]}
+    out = {k: p.get(k) for k in ["player_id", "name", "league", "position", "age", "image_url",
+                                 "market_value", "predicted_value", "gap_pct"]}
+    out["club"] = p.get("current_club") or p["club"]          # where he plays now
+    return out
 
 app = FastAPI(title="Football Value Predictor API")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["GET"], allow_headers=["*"])
@@ -42,7 +45,7 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["GET"], a
 
 @app.get("/api/health")
 def health():
-    return {"status": "ok", **META, "seasons": SEASONS}
+    return {"status": "ok", **META, "seasons": SEASONS, **_stats.get("meta", {})}
 
 @app.get("/api/featured")
 def featured(limit: int = Query(8, ge=1, le=24)):

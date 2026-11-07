@@ -38,7 +38,7 @@ function SeasonBars({ seasons, selected, onPick }) {
             <text className="bar-val" x={cx - bw / 2 - 2} y={y(s.goals) - 5} textAnchor="middle">{s.goals}</text>
             <rect className="bar assists" x={cx + 2} y={y(s.assists)} width={bw} height={H - m.b - y(s.assists)} rx="3" />
             <text className="bar-val" x={cx + bw / 2 + 2} y={y(s.assists) - 5} textAnchor="middle">{s.assists}</text>
-            <text className="axis" x={cx} y={H - 9} textAnchor="middle">{seasonLabel(s.season)}</text>
+            <text className="axis" x={cx} y={H - 9} textAnchor="middle">{seasonLabel(s.season)}{s.partial ? "*" : ""}</text>
           </g>
         );
       })}
@@ -63,6 +63,7 @@ export default function FiveYearStats({ playerId }) {
       <p className="muted small">
         All competitions, including cups, European games and international matches.{" "}
         <b>Click a season</b> to see it split by competition.
+        {seasons.some((s) => s.partial) && " * The current season is still in progress."}
       </p>
 
       <SeasonBars seasons={seasons} selected={selected.season} onPick={setPicked} />
@@ -89,7 +90,7 @@ export default function FiveYearStats({ playerId }) {
                 className={s.season === selected.season ? "row-active" : "row-click"}
                 onClick={() => setPicked(s.season)}
               >
-                <td><b>{seasonLabel(s.season)}</b></td>
+                <td><b>{seasonLabel(s.season)}</b>{s.partial && <span className="muted small"> so far</span>}</td>
                 <td>{s.club ?? "–"}</td>
                 <td className="num">{s.apps}</td>
                 <td className="num">{s.minutes.toLocaleString("en-GB")}</td>
@@ -122,7 +123,7 @@ export default function FiveYearStats({ playerId }) {
       </div>
 
       <h3 className="subhead">
-        {seasonLabel(selected.season)} by competition{selected.club ? ` · ${selected.club}` : ""}
+        {seasonLabel(selected.season)}{selected.partial ? " (so far)" : ""} by competition{selected.club ? ` · ${selected.club}` : ""}
       </h3>
       <div className="table-wrap">
         <table className="table">

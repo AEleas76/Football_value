@@ -4,23 +4,19 @@ Run AFTER export_predictions.py, from the project root:  python export_stats.py
 """
 import json
 import numpy as np, pandas as pd
+from club_context import flag_returns  # noqa: F401  (kept so both exports share one helper module)
 from pathlib import Path
 
 DATA, API = Path("data"), Path("api")
-feats = pd.read_csv(DATA / "features_v3.csv")
-available_seasons = sorted(int(s) for s in feats.season.unique())
-SEASONS = [s for s in available_seasons if s >= 2021]            # dynamic 5-year+ lookback
+SEASONS = [2021, 2022, 2023, 2024, 2025]            # 2025 = the 2025/26 season
 
 pred = json.load(open(API / "predictions.json", encoding="utf-8"))
 ids = {p["player_id"] for p in pred["players"]}
 
 players = pd.read_csv(DATA / "players.csv")
 clubs = pd.read_csv(DATA / "clubs.csv")[["club_id", "name"]].rename(columns={"name": "club_name"})
-games = pd.read_csv(DATA / "games.csv", usecols=["game_id", "season", "competition_id", "date"])
-is_wc_2026 = (games.competition_id == "FIWC") & (pd.to_datetime(games.date).dt.year == 2026)
-games.loc[is_wc_2026, "season"] = 2025
-games = games[["game_id", "season"]]
-
+games = pd.read_csv(DATA / "games.csv", usecols=["game_id", "season", "date"], parse_dates=["date"])
+feats = pd.read_csv(DATA / "features_v3.csv")
 apps = pd.read_csv(DATA / "appearances.csv",
                    usecols=["game_id", "player_id", "player_club_id", "competition_id",
                             "yellow_cards", "red_cards", "goals", "assists", "minutes_played"])
@@ -43,7 +39,6 @@ for r in players[players.player_id.isin(ids)].itertuples():
         "profile_url": None if pd.isna(r.url) else r.url,
         "date_of_birth": iso(r.date_of_birth),
         "contract_expiration": iso(r.contract_expiration_date),
-        "current_club": None if pd.isna(r.current_club_name) else r.current_club_name,
         "country_of_birth": None if pd.isna(r.country_of_birth) else r.country_of_birth,
         "city_of_birth": None if pd.isna(r.city_of_birth) else str(r.city_of_birth).strip(),
         "height_cm": None if pd.isna(r.height_in_cm) else int(r.height_in_cm),
@@ -138,7 +133,94 @@ for season, g in f.groupby("season"):
         "market_value": int(r.market_value), "has_profile": int(r.player_id) in ids,
     } for r in g.itertuples()]
 
-out = {"seasons": SEASONS, "profiles": profiles, "history": history, "leaderboard": leaderboard}
+# ---------- 4. Live layer: stats collected after the dataset snapshot (written by update_live.py) ----------
+COMPLETE_THROUGH = 2025                  # seasons up to 2025/26 are finished
+LEAGUE_CODE = {"Premier League": "GB1", "LaLiga": "ES1", "Bundesliga": "L1", "Serie A": "IT1", "Ligue 1": "Ligue 1"}
+LEAGUE_CODE["Ligue 1"] = "FR1"
+LIVE, LIVE_META = DATA / "live" / "live_stats.csv", DATA / "live" / "live_meta.json"
+live_info, partial_seasons, delta = {}, [], {}
+STAT_KEYS = ["apps", "minutes", "goals", "assists", "yellows", "reds"]
+if LIVE.exists():
+    live = pd.read_csv(LIVE)
+    live_info = json.load(open(LIVE_META)) if LIVE_META.exists() else {}
+    as_of = pd.Timestamp(live_info.get("as_of", pd.Timestamp.today().normalize()))
+    live_seasons = sorted(int(x) for x in live.season.unique())
+    partial_seasons = [x for x in live_seasons if x > COMPLETE_THROUGH]
+    vals_latest = (pd.read_csv(DATA / "player_valuations.csv", usecols=["player_id", "date", "market_value_in_eur"],
+                               parse_dates=["date"]).sort_values("date").groupby("player_id").market_value_in_eur.last())
+
+    # 4a. per-player history: live rows replace or extend the dataset's competitions
+    for (pid, season), g in live[live.player_id.isin(ids)].groupby(["player_id", "season"]):
+        pid, season = int(pid), int(season)
+        rows = history.setdefault(pid, [])
+        row = next((r for r in rows if r["season"] == season), None)
+        if row is None:
+            row = {"season": season, "club": None, "market_value": None, "competitions": []}
+            rows.append(row)
+        by_name = {c["name"]: c for c in row["competitions"]}
+        d = dict.fromkeys(STAT_KEYS, 0)
+        for c in g.itertuples():
+            new = {"name": c.competition, "kind": c.kind, **{k: int(getattr(c, k)) for k in STAT_KEYS}}
+            old = by_name.get(c.competition)
+            for k in STAT_KEYS:
+                d[k] += new[k] - (old[k] if old else 0)
+            if old:
+                row["competitions"][row["competitions"].index(old)] = new
+            else:
+                row["competitions"].append(new)
+        delta[(pid, season)] = d
+        row["competitions"].sort(key=lambda c: -c["minutes"])
+        for k in STAT_KEYS:
+            row[k] = sum(c[k] for c in row["competitions"])
+        row["ga_p90"] = clean(round((row["goals"] + row["assists"]) / row["minutes"] * 90, 2)) if row["minutes"] >= 270 else None
+        if season > COMPLETE_THROUGH:
+            row["partial"] = True
+        if not row.get("club"):
+            row["club"] = g.sort_values("minutes").club.iloc[-1]
+        rows.sort(key=lambda r: r["season"])
+
+    # 4b. existing leaderboards: add what the live file changed (e.g. the full World Cup)
+    for (pid, season), d in delta.items():
+        for r in leaderboard.get(str(season), []):
+            if r["player_id"] == pid:
+                for k in STAT_KEYS:
+                    r[k] += d[k]
+                r["ga_p90"] = clean(round((r["goals"] + r["assists"]) / r["minutes"] * 90, 2)) if r["minutes"] >= 270 else None
+
+    # 4c. new (partial) seasons get their own leaderboard
+    tm = players.set_index("player_id")
+    for season in partial_seasons:
+        out_rows = []
+        for pid, g in live[live.season == season].groupby("player_id"):
+            top = g[g.competition.isin(LEAGUE_CODE) & (g.kind == "League")]
+            if top.empty or pid not in tm.index:
+                continue
+            main = top.sort_values("minutes").iloc[-1]
+            tot = g[STAT_KEYS].sum()
+            dob = tm.at[pid, "date_of_birth"]
+            out_rows.append({
+                "player_id": int(pid), "name": tm.at[pid, "name"], "club": main.club, "league": LEAGUE_CODE[main.competition],
+                "position": tm.at[pid, "position"] if pd.notna(tm.at[pid, "position"]) else "Unknown",
+                "age": round((as_of - pd.Timestamp(dob)).days / 365.25, 1) if pd.notna(dob) else 0.0,
+                "minutes": int(tot.minutes), "apps": int(tot.apps), "goals": int(tot.goals), "assists": int(tot.assists),
+                "yellows": int(tot.yellows), "reds": int(tot.reds),
+                "ga_p90": clean(round((tot.goals + tot.assists) / tot.minutes * 90, 2)) if tot.minutes >= 270 else None,
+                "market_value": int(vals_latest.get(pid, 0)), "has_profile": int(pid) in ids})
+        leaderboard[str(season)] = out_rows
+    print(f"Live layer: {len(live)} rows, seasons {live_seasons}, partial {partial_seasons}, as of {as_of.date()}")
+
+# ---------- 5. What date does the data reach? (shown on the website) ----------
+tr_dates = pd.read_csv(DATA / "transfers.csv", usecols=["transfer_date"], parse_dates=["transfer_date"]).transfer_date
+val_dates = pd.read_csv(DATA / "player_valuations.csv", usecols=["date"], parse_dates=["date"]).date
+# the transfer file has a few stray entries after the snapshot, so report the last month with a realistic volume
+_tm = tr_dates[tr_dates <= pd.Timestamp.today()].dt.to_period("M").value_counts().sort_index()
+tr_month = _tm[_tm >= 300]
+meta = {"data_through": {"matches": str(games.date.max().date()), "valuations": str(val_dates.max().date()),
+                         "transfers": str(tr_month.index[-1])},
+        "live_as_of": live_info.get("as_of"), "live_source": live_info.get("source"), "partial_seasons": partial_seasons}
+
+out = {"seasons": sorted(set(SEASONS) | set(partial_seasons)), "meta": meta, "profiles": profiles,
+       "history": history, "leaderboard": leaderboard}
 with open(API / "stats.json", "w", encoding="utf-8") as fh:
     json.dump(out, fh, ensure_ascii=False, separators=(",", ":"))
 

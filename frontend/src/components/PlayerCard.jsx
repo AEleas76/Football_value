@@ -1,12 +1,12 @@
 import { Link } from "react-router-dom";
-import Avatar from "./Avatar.jsx";
+import PlayerPhoto from "./PlayerPhoto.jsx";
 import { money } from "../format";
 
 export default function PlayerCard({ player, to }) {
   return (
     <Link to={to ?? `/player/${player.player_id}`} className="pcard">
       <div className="pcard-photo">
-        <Avatar src={player.image_url} name={player.name} size={84} shape="portrait" />
+        <PlayerPhoto src={player.image_url} name={player.name} width={96} />
       </div>
       <div className="pcard-name">{player.name}</div>
       <div className="muted small">

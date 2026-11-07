@@ -1,5 +1,5 @@
 import { Link, useSearchParams } from "react-router-dom";
-import Avatar from "../components/Avatar.jsx";
+import PlayerPhoto from "../components/PlayerPhoto.jsx";
 import SearchBox from "../components/SearchBox.jsx";
 import { comparePlayers, getPlayerStats } from "../api";
 import { useApi } from "../hooks";
@@ -81,7 +81,7 @@ function PairChart({ a, b, statsA, statsB }) {
 function Header({ player }) {
   return (
     <div className="cmp-head">
-      <Avatar src={player.image_url} name={player.name} size={64} shape="portrait" />
+      <PlayerPhoto src={player.image_url} name={player.name} width={64} />
       <div>
         <Link to={`/player/${player.player_id}`} className="cmp-name">{player.name}</Link>
         <div className="muted small">{player.current_club ?? player.club}</div>
