@@ -110,7 +110,7 @@ export default function SearchBox({ onSelect, placeholder = "Search a player…"
           ))}
         </ul>
       )}
-      {showEmpty && <div className="search-list search-empty">No player found (only players with 450+ minutes in 2025/26)</div>}
+      {showEmpty && <div className="search-list search-empty">No player found (only players with 450+ minutes in the latest season)</div>}
       {error && <div className="search-list search-empty error">{error}</div>}
     </div>
   );

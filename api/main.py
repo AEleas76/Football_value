@@ -19,19 +19,37 @@ META, PLAYERS = _pred["meta"], _pred["players"]
 SEASONS = _stats["seasons"]
 HISTORY, LEADERBOARD = _stats["history"], _stats["leaderboard"]
 
-# add photo, contract, birthplace... to every player record
-for _p in PLAYERS:
-    _p.update(_stats["profiles"].get(str(_p["player_id"]), {}))
-    _p.setdefault("current_club", _p["club"])
-BY_ID = {p["player_id"]: p for p in PLAYERS}
-
 def _norm(s: str) -> str:
     """lowercase and strip accents so 'odegaard' finds 'Odegaard'-style names"""
     s = s.replace("ø", "o").replace("Ø", "O").replace("ß", "ss")
     return "".join(c for c in unicodedata.normalize("NFKD", s.lower()) if not unicodedata.combining(c))
 
-SEARCH = {p["player_id"]: _norm(p["name"]) for p in PLAYERS}
-LB_NORM = {season: [_norm(r["name"]) for r in rows] for season, rows in LEADERBOARD.items()}
+BY_ID = {}
+SEARCH = {}
+LB_NORM = {}
+_last_mtime = 0
+
+def _refresh_if_needed():
+    global _pred, _stats, META, PLAYERS, SEASONS, HISTORY, LEADERBOARD, BY_ID, SEARCH, LB_NORM, _last_mtime
+    p_path = BASE / "predictions.json"
+    s_path = BASE / "stats.json"
+    if not p_path.exists() or not s_path.exists():
+        return
+    cur_mtime = max(p_path.stat().st_mtime, s_path.stat().st_mtime)
+    if cur_mtime > _last_mtime:
+        _pred, _stats = _load("predictions.json"), _load("stats.json")
+        META, PLAYERS = _pred["meta"], _pred["players"]
+        SEASONS = _stats["seasons"]
+        HISTORY, LEADERBOARD = _stats["history"], _stats["leaderboard"]
+        for _p in PLAYERS:
+            _p.update(_stats["profiles"].get(str(_p["player_id"]), {}))
+            _p.setdefault("current_club", _p["club"])
+        BY_ID = {p["player_id"]: p for p in PLAYERS}
+        SEARCH = {p["player_id"]: _norm(p["name"]) for p in PLAYERS}
+        LB_NORM = {season: [_norm(r["name"]) for r in rows] for season, rows in LEADERBOARD.items()}
+        _last_mtime = cur_mtime
+
+_refresh_if_needed()
 
 def _summary(p: dict) -> dict:
     out = {k: p.get(k) for k in ["player_id", "name", "league", "position", "age", "image_url",
@@ -41,10 +59,17 @@ def _summary(p: dict) -> dict:
 
 app = FastAPI(title="Football Value Predictor API")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["GET"], allow_headers=["*"])
-# allow_origins=["*"] is fine for a read-only public API; restrict it to your site's URL once deployed.
+
+@app.middleware("http")
+async def sync_and_no_cache_middleware(request, call_next):
+    _refresh_if_needed()
+    response = await call_next(request)
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    return response
 
 @app.get("/api/health")
 def health():
+    _refresh_if_needed()
     return {"status": "ok", **META, "seasons": SEASONS, **_stats.get("meta", {})}
 
 @app.get("/api/featured")

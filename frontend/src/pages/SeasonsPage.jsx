@@ -23,7 +23,7 @@ export default function SeasonsPage() {
   const debouncedQ = useDebounced(q, 300);
 
   const { data: meta } = useApi((signal) => getHealth(signal), []);
-  const seasons = meta ? [...meta.seasons].reverse() : [2025];
+  const seasons = meta ? [...meta.seasons].reverse() : [2026, 2025];
   const partial = meta?.partial_seasons ?? [];
   const season = pickedSeason ?? seasons[0];                       // newest season by default
   const minMinutes = pickedMinutes ?? (partial.includes(season) ? 180 : 900);

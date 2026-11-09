@@ -55,6 +55,8 @@ def log(msg: str):
 
 def football_data_request(endpoint: str, token: str = DEFAULT_API_TOKEN):
     """Sends authenticated GET request to Football-Data.org using X-Auth-Token header."""
+    import time
+    time.sleep(1.2)  # Respect free tier rate limits (10 req/min)
     url = f"{FOOTBALL_DATA_BASE_URL}/{endpoint.lstrip('/')}"
     headers = {
         "X-Auth-Token": token,
@@ -62,12 +64,17 @@ def football_data_request(endpoint: str, token: str = DEFAULT_API_TOKEN):
         "User-Agent": "FootballValuePredictor/1.0",
     }
     req = urllib.request.Request(url, headers=headers)
-    try:
-        with urllib.request.urlopen(req, timeout=12) as resp:
-            return json.loads(resp.read().decode("utf-8"))
-    except Exception as e:
-        log(f"  Football-Data.org API error on '{endpoint}': {e}")
-        return None
+    for attempt in range(2):
+        try:
+            with urllib.request.urlopen(req, timeout=12) as resp:
+                return json.loads(resp.read().decode("utf-8"))
+        except Exception as e:
+            if "429" in str(e) and attempt == 0:
+                log("  Rate limit reached (429), pausing 6s before retry...")
+                time.sleep(6.0)
+                continue
+            log(f"  Football-Data.org API error on '{endpoint}': {e}")
+            return None
 
 def inspect_cutoffs():
     """Inspects latest dates recorded across the core data files."""
@@ -146,7 +153,169 @@ def sync_data(season: int = 2026, token: str = DEFAULT_API_TOKEN):
         vals = pd.read_csv(vals_path)
         log(f"Valuations verified: {len(vals):,} valuations up to {vals['date'].max()}")
 
+    # Ingest ongoing season data from Football-Data.org on top of predictions and stats
+    sync_ongoing_season_data(season=season, token=token)
+
     log(f"Data sync complete up to {today}!")
+
+def sync_ongoing_season_data(season: int = 2026, token: str = DEFAULT_API_TOKEN):
+    """Fetches current ongoing season statistics from Football-Data.org
+    and adds them on top of existing stats.json and predictions.json."""
+    stats_file = Path("api/stats.json")
+    pred_file = Path("api/predictions.json")
+    if not stats_file.exists() or not pred_file.exists():
+        log("Warning: api/stats.json or api/predictions.json not found, skipping ongoing season json injection.")
+        return
+
+    with open(stats_file, "r", encoding="utf-8") as f:
+        stats_data = json.load(f)
+    with open(pred_file, "r", encoding="utf-8") as f:
+        pred_data = json.load(f)
+
+    # 1. Ensure season 2026 is in seasons list
+    if season not in stats_data["seasons"]:
+        stats_data["seasons"].append(season)
+        stats_data["seasons"].sort()
+
+    # 2. Update prediction metadata
+    today_str = datetime.date.today().isoformat()
+    pred_data["meta"]["season"] = season
+    pred_data["meta"]["season_label"] = "2026/27 (Ongoing)"
+    pred_data["meta"]["is_ongoing"] = True
+    pred_data["meta"]["as_of"] = today_str
+    if "meta" not in stats_data:
+        stats_data["meta"] = {}
+    stats_data["meta"]["partial_seasons"] = [season]
+    stats_data["meta"]["live_as_of"] = today_str
+
+    # Index existing players by lowercase name
+    player_by_name = {}
+    for p in pred_data["players"]:
+        player_by_name[p["name"].lower().strip()] = p
+
+    # Read players.csv to get extra player details if needed
+    players_df = pd.read_csv(DATA / "players.csv")
+    csv_player_by_name = {}
+    for r in players_df.itertuples():
+        if pd.notna(r.name):
+            csv_player_by_name[r.name.lower().strip()] = r
+
+    leaderboard_2026 = []
+    matched_count = 0
+
+    log(f"Fetching ongoing {season}/{str(season+1)[2:]} season player stats from Football-Data.org...")
+
+    for int_league, comp in FOOTBALL_DATA_COMPETITIONS.items():
+        fd_code = comp["code"]
+        league_name = comp["name"]
+
+        # Fetch scorers (limit=50)
+        scorers_res = football_data_request(f"competitions/{fd_code}/scorers?limit=50", token=token)
+        if not scorers_res or "scorers" not in scorers_res:
+            continue
+
+        for sc in scorers_res["scorers"]:
+            p_info = sc["player"]
+            team_info = sc["team"]
+            p_name = p_info["name"].strip()
+            norm_name = p_name.lower()
+
+            p_rec = player_by_name.get(norm_name)
+            csv_rec = csv_player_by_name.get(norm_name)
+
+            pid = p_rec["player_id"] if p_rec else (int(csv_rec.player_id) if csv_rec else None)
+            if not pid:
+                continue
+
+            matched_count += 1
+            apps = sc.get("playedMatches") or 1
+            goals = sc.get("goals") or 0
+            assists = sc.get("assists") or 0
+            # Approx 85 minutes per match
+            minutes = apps * 85
+            ga_p90 = round((goals + assists) / minutes * 90, 2)
+            team_name = team_info.get("name", "Unknown")
+
+            # Determine player position, age, and market value
+            pos = p_rec.get("position") if p_rec else (csv_rec.position if csv_rec and pd.notna(csv_rec.position) else "Attack")
+            age = p_rec.get("age", 25.0) if p_rec else 25.0
+            mv = p_rec.get("market_value", 20_000_000) if p_rec else 15_000_000
+
+            # 2a. Update player career history in stats.json
+            pid_str = str(pid)
+            history_list = stats_data["history"].setdefault(pid_str, [])
+            existing_2026 = next((h for h in history_list if h.get("season") == season), None)
+            season_entry = {
+                "season": season,
+                "apps": apps,
+                "minutes": minutes,
+                "goals": goals,
+                "assists": assists,
+                "yellows": 0,
+                "reds": 0,
+                "ga_p90": ga_p90,
+                "club": team_name,
+                "market_value": mv,
+                "competitions": [
+                    {
+                        "name": league_name,
+                        "kind": "League",
+                        "apps": apps,
+                        "minutes": minutes,
+                        "goals": goals,
+                        "assists": assists,
+                        "yellows": 0,
+                        "reds": 0,
+                    }
+                ],
+            }
+            if existing_2026:
+                existing_2026.update(season_entry)
+            else:
+                history_list.append(season_entry)
+                history_list.sort(key=lambda h: h.get("season", 0))
+
+            # 2b. Add to 2026 leaderboard
+            leaderboard_2026.append({
+                "player_id": pid,
+                "name": p_name,
+                "club": team_name,
+                "league": int_league,
+                "position": pos,
+                "age": age,
+                "minutes": minutes,
+                "apps": apps,
+                "goals": goals,
+                "assists": assists,
+                "yellows": 0,
+                "reds": 0,
+                "ga_p90": ga_p90,
+                "market_value": mv,
+                "has_profile": p_rec is not None,
+            })
+
+            # 2c. Update predictions.json for this player
+            if p_rec:
+                p_rec["current_club"] = team_name
+                p_rec["season"] = season
+                p_rec["stats"]["minutes"] = minutes
+                p_rec["stats"]["apps"] = apps
+                p_rec["stats"]["goals"] = goals
+                p_rec["stats"]["assists"] = assists
+                p_rec["stats"]["ga_p90"] = ga_p90
+
+    # Sort leaderboard by G+A descending
+    leaderboard_2026.sort(key=lambda r: -(r["goals"] + r["assists"]))
+    stats_data["leaderboard"][str(season)] = leaderboard_2026
+
+    # Save files
+    with open(stats_file, "w", encoding="utf-8") as f:
+        json.dump(stats_data, f, ensure_ascii=False)
+    with open(pred_file, "w", encoding="utf-8") as f:
+        json.dump(pred_data, f, ensure_ascii=False)
+
+    log(f"Added ongoing {season} season: matched {matched_count} active players across top 5 leagues!")
+    log(f"Updated api/stats.json (seasons: {stats_data['seasons']}) and api/predictions.json (active season: {pred_data['meta']['season_label']})")
 
 def rebuild_pipeline():
     """Runs feature building and export pipeline."""
@@ -175,9 +344,9 @@ def main():
     parser.add_argument("--rebuild", action="store_true", help="Rebuild features, model, and predictions after syncing")
     args = parser.parse_args()
 
-    sync_data(season=args.season, token=args.token)
     if args.rebuild:
         rebuild_pipeline()
+    sync_data(season=args.season, token=args.token)
 
 if __name__ == "__main__":
     main()

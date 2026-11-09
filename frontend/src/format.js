@@ -18,8 +18,8 @@ export function money(v) {
   return `€${Math.round(v / 1e3)}k`;
 }
 
-// 2025 -> "2025/26"
-export const seasonLabel = (s) => `${s}/${String((s + 1) % 100).padStart(2, "0")}`;
+// 2025 -> "2025/26", 2026 -> "2026/27 (Ongoing)"
+export const seasonLabel = (s) => (s >= 2026 ? "2026/27 (Ongoing)" : `${s}/${String((s + 1) % 100).padStart(2, "0")}`);
 // 2012 -> "12/13" (for crowded chart axes)
 export const seasonShort = (s) => `${String(s % 100).padStart(2, "0")}/${String((s + 1) % 100).padStart(2, "0")}`;
 

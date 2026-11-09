@@ -39,7 +39,7 @@ export default function Home() {
         <PitchBackground />
         <div className="hero-inner">
           <span className="eyebrow">
-            <BallIcon width={16} height={16} /> Top 5 leagues · {meta ? meta.season_label : "2025/26"}
+            <BallIcon width={16} height={16} /> Top 5 leagues · {meta ? meta.season_label : "2026/27 (Ongoing)"}
           </span>
           <h1>What is a footballer really worth?</h1>
           <p className="lead">
