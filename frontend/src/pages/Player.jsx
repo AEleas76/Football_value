@@ -227,7 +227,7 @@ export default function Player() {
       </section>
 
       <section className="card">
-        <h2>Last 5 seasons and this season so far</h2>
+        <h2>Career statistics, season by season</h2>
         <FiveYearStats playerId={p.player_id} />
         <p className="muted small">
           The model sees goals, assists, minutes, age, club strength and league, but not passing, defending

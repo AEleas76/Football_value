@@ -8,7 +8,7 @@ from club_context import flag_returns  # noqa: F401  (kept so both exports share
 from pathlib import Path
 
 DATA, API = Path("data"), Path("api")
-SEASONS = [2021, 2022, 2023, 2024, 2025]            # 2025 = the 2025/26 season
+SEASONS = list(range(2012, 2026))                   # every season in the dataset: 2012/13 ... 2025/26
 
 pred = json.load(open(API / "predictions.json", encoding="utf-8"))
 ids = {p["player_id"] for p in pred["players"]}
@@ -16,7 +16,6 @@ ids = {p["player_id"] for p in pred["players"]}
 players = pd.read_csv(DATA / "players.csv")
 clubs = pd.read_csv(DATA / "clubs.csv")[["club_id", "name"]].rename(columns={"name": "club_name"})
 games = pd.read_csv(DATA / "games.csv", usecols=["game_id", "season", "date"], parse_dates=["date"])
-feats = pd.read_csv(DATA / "features_v3.csv")
 apps = pd.read_csv(DATA / "appearances.csv",
                    usecols=["game_id", "player_id", "player_club_id", "competition_id",
                             "yellow_cards", "red_cards", "goals", "assists", "minutes_played"])
@@ -98,7 +97,11 @@ by_comp["kind"] = by_comp.kind.fillna("Other")
 main_club = (mine.groupby(["player_id", "season", "player_club_id"], as_index=False).minutes_played.sum()
              .sort_values("minutes_played").groupby(["player_id", "season"], as_index=False).last()
              .merge(clubs, left_on="player_club_id", right_on="club_id", how="left")[["player_id", "season", "club_name"]])
-mv = feats[["player_id", "season", "market_value"]]
+_vals = pd.read_csv(DATA / "player_valuations.csv", usecols=["player_id", "date", "market_value_in_eur"], parse_dates=["date"])
+_vals = _vals[_vals.date.dt.month.between(1, 7) & (_vals.market_value_in_eur > 0)]
+_vals["season"] = _vals.date.dt.year - 1
+mv = (_vals.sort_values("date").groupby(["player_id", "season"], as_index=False).market_value_in_eur.last()
+      .rename(columns={"market_value_in_eur": "market_value"}))
 
 history = {}
 for (pid, season), g in by_comp.groupby(["player_id", "season"]):
@@ -121,16 +124,29 @@ for pid, rows in history.items():
         v = meta_rows.market_value.get(key) if key in meta_rows.index else None
         r["market_value"] = None if v is None or pd.isna(v) else int(v)
 
-# ---------- 3. Season leaderboard (top-5-league players with 450+ minutes) ----------
-f = feats[feats.season.isin(SEASONS)].merge(clubs, on="club_id", how="left")
+# ---------- 3. Season leaderboard (players with 450+ minutes who played in a top-5 league that season) ----------
+TOP5 = ["GB1", "ES1", "L1", "IT1", "FR1"]
+totals = a.groupby(["player_id", "season"], as_index=False).agg(
+    apps=("game_id", "count"), minutes=("minutes_played", "sum"), goals=("goals", "sum"), assists=("assists", "sum"),
+    yellows=("yellow_cards", "sum"), reds=("red_cards", "sum"))
+league_minutes = (a[a.competition_id.isin(TOP5)].groupby(["player_id", "season", "player_club_id", "competition_id"], as_index=False)
+                  .minutes_played.sum().sort_values("minutes_played").groupby(["player_id", "season"], as_index=False).last())
+lb = (league_minutes.merge(totals, on=["player_id", "season"])
+      .merge(clubs, left_on="player_club_id", right_on="club_id", how="left")
+      .merge(players[["player_id", "name", "position", "date_of_birth"]], on="player_id", how="left")
+      .merge(mv, on=["player_id", "season"], how="left"))
+lb = lb[lb.minutes >= 450]
+lb["age"] = (pd.to_datetime(lb.season + 1, format="%Y") - pd.to_datetime(lb.date_of_birth)).dt.days / 365.25
 leaderboard = {}
-for season, g in f.groupby("season"):
+for season, g in lb.groupby("season"):
     leaderboard[str(int(season))] = [{
-        "player_id": int(r.player_id), "name": r.name, "club": r.club_name, "league": r.league,
-        "position": r.position, "age": round(float(r.age), 1), "minutes": int(r.minutes), "apps": int(r.apps),
+        "player_id": int(r.player_id), "name": r.name, "club": r.club_name if pd.notna(r.club_name) else "Unknown",
+        "league": r.competition_id, "position": r.position if pd.notna(r.position) else "Unknown",
+        "age": round(float(r.age), 1) if pd.notna(r.age) else 0.0, "minutes": int(r.minutes), "apps": int(r.apps),
         "goals": int(r.goals), "assists": int(r.assists), "yellows": int(r.yellows), "reds": int(r.reds),
-        "ga_p90": clean(round(float(r.ga_p90), 2)) if pd.notna(r.ga_p90) else None,
-        "market_value": int(r.market_value), "has_profile": int(r.player_id) in ids,
+        "ga_p90": clean(round((r.goals + r.assists) / r.minutes * 90, 2)) if r.minutes >= 270 else None,
+        "market_value": int(r.market_value) if pd.notna(r.market_value) else None,
+        "has_profile": int(r.player_id) in ids,
     } for r in g.itertuples()]
 
 # ---------- 4. Live layer: stats collected after the dataset snapshot (written by update_live.py) ----------

@@ -20,6 +20,8 @@ export function money(v) {
 
 // 2025 -> "2025/26"
 export const seasonLabel = (s) => `${s}/${String((s + 1) % 100).padStart(2, "0")}`;
+// 2012 -> "12/13" (for crowded chart axes)
+export const seasonShort = (s) => `${String(s % 100).padStart(2, "0")}/${String((s + 1) % 100).padStart(2, "0")}`;
 
 export function signedPct(v) {
   const r = Math.round(v);

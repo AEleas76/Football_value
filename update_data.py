@@ -7,6 +7,7 @@ Usage:
     python update_data.py --rebuild        # Sync and automatically rebuild all features and models
     python update_data.py --season 2026    # Specifically fetch ongoing 2026/27 season data
 """
+import os
 import argparse
 import datetime
 import json
@@ -18,12 +19,27 @@ import numpy as np
 import pandas as pd
 
 DATA = Path("data")
-TOP5_LEAGUES = {
-    "GB1": {"name": "Premier League", "tm_slug": "premier-league", "tier": "first_tier"},
-    "ES1": {"name": "LaLiga", "tm_slug": "laliga", "tier": "first_tier"},
-    "L1":  {"name": "Bundesliga", "tm_slug": "bundesliga", "tier": "first_tier"},
-    "IT1": {"name": "Serie A", "tm_slug": "serie-a", "tier": "first_tier"},
-    "FR1": {"name": "Ligue 1", "tm_slug": "ligue-1", "tier": "first_tier"},
+
+# Read API token from .env or environment
+def load_env_token():
+    env_file = Path(".env")
+    if env_file.exists():
+        for line in env_file.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if line.startswith("FOOTBALL_DATA_API_KEY="):
+                return line.split("=", 1)[1].strip().strip('"').strip("'")
+    return os.getenv("FOOTBALL_DATA_API_KEY", "8820cb0b1e8f410cbe65121c1cd19ebe")
+
+DEFAULT_API_TOKEN = load_env_token()
+FOOTBALL_DATA_BASE_URL = "https://api.football-data.org/v4"
+
+# Mapping from our internal league codes to Football-Data.org competition codes
+FOOTBALL_DATA_COMPETITIONS = {
+    "GB1": {"code": "PL",  "name": "Premier League"},
+    "ES1": {"code": "PD",  "name": "LaLiga (Primera Division)"},
+    "L1":  {"code": "BL1", "name": "Bundesliga"},
+    "IT1": {"code": "SA",  "name": "Serie A"},
+    "FR1": {"code": "FL1", "name": "Ligue 1"},
 }
 
 HEADERS = {
@@ -36,6 +52,22 @@ HEADERS = {
 
 def log(msg: str):
     print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] {msg}")
+
+def football_data_request(endpoint: str, token: str = DEFAULT_API_TOKEN):
+    """Sends authenticated GET request to Football-Data.org using X-Auth-Token header."""
+    url = f"{FOOTBALL_DATA_BASE_URL}/{endpoint.lstrip('/')}"
+    headers = {
+        "X-Auth-Token": token,
+        "Accept": "application/json",
+        "User-Agent": "FootballValuePredictor/1.0",
+    }
+    req = urllib.request.Request(url, headers=headers)
+    try:
+        with urllib.request.urlopen(req, timeout=12) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+    except Exception as e:
+        log(f"  Football-Data.org API error on '{endpoint}': {e}")
+        return None
 
 def inspect_cutoffs():
     """Inspects latest dates recorded across the core data files."""
@@ -73,15 +105,30 @@ def enforce_rules(games_df: pd.DataFrame = None, vals_df: pd.DataFrame = None):
 
     return games_df, vals_df
 
-def sync_data(season: int = 2026):
-    """Runs data sync, applies deduplication, and writes to data/."""
+def sync_data(season: int = 2026, token: str = DEFAULT_API_TOKEN):
+    """Runs data sync using Football-Data.org API and existing tables."""
     cutoffs = inspect_cutoffs()
     log("Current database cutoffs:")
     for f, c in cutoffs.items():
         log(f"  - {f}: {c}")
 
     today = datetime.date.today().isoformat()
-    log(f"Importing and updating records up to {today}...")
+    log(f"Connecting to Football-Data.org (X-Auth-Token: {token[:6]}...)...")
+
+    # Query top-5 European leagues via Football-Data.org
+    for int_code, comp in FOOTBALL_DATA_COMPETITIONS.items():
+        fd_code = comp["code"]
+        info = football_data_request(f"competitions/{fd_code}", token=token)
+        if info:
+            curr = info.get("currentSeason", {})
+            mday = curr.get("currentMatchday", "N/A")
+            log(f"  [OK] {comp['name']} ({fd_code}): Current Matchday {mday}")
+
+            # Top scorers
+            scorers_data = football_data_request(f"competitions/{fd_code}/scorers?limit=3", token=token)
+            if scorers_data and "scorers" in scorers_data:
+                leaders = [f"{s['player']['name']} ({s['goals']}g)" for s in scorers_data["scorers"]]
+                log(f"       Leaders: {', '.join(leaders)}")
 
     # Load and enforce rules on games
     games_path = DATA / "games.csv"
@@ -124,10 +171,11 @@ def rebuild_pipeline():
 def main():
     parser = argparse.ArgumentParser(description="Sync Football Data up to Present Date")
     parser.add_argument("--season", type=int, default=2026, help="Target season (default 2026 for 2026/27)")
+    parser.add_argument("--token", type=str, default=DEFAULT_API_TOKEN, help="Football-Data.org API authentication token")
     parser.add_argument("--rebuild", action="store_true", help="Rebuild features, model, and predictions after syncing")
     args = parser.parse_args()
 
-    sync_data(season=args.season)
+    sync_data(season=args.season, token=args.token)
     if args.rebuild:
         rebuild_pipeline()
 

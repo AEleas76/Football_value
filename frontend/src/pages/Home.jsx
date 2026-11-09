@@ -11,8 +11,8 @@ import { useApi } from "../hooks";
 const QUICK = ["Haaland", "Yamal", "Mbappé", "Pedri", "Musiala"];
 
 const FEATURES = [
-  { to: "/compare", icon: VersusIcon, title: "Compare players", text: "Put two players side by side: value, profile and five seasons of output." },
-  { to: "/stats", icon: ChartIcon, title: "Last 5 years", text: "Goals, assists, minutes and cards for every season, split by competition." },
+  { to: "/compare", icon: VersusIcon, title: "Compare players", text: "Put two players side by side: value, profile and career output." },
+  { to: "/stats", icon: ChartIcon, title: "Career stats", text: "Goals, assists, minutes and cards for every season of a career, split by competition." },
   { to: "/seasons", icon: CalendarIcon, title: "Season explorer", text: "Pick a year, then search or rank every player in the top five leagues." },
   { to: "/gaps", icon: GapIcon, title: "Model vs market", text: "See where the model and the Transfermarkt value disagree most." },
 ];
@@ -43,7 +43,7 @@ export default function Home() {
           </span>
           <h1>What is a footballer really worth?</h1>
           <p className="lead">
-            Search any player to see his profile, five seasons of statistics, his Transfermarkt value and
+            Search any player to see his profile, every season of his career, his Transfermarkt value and
             what our model thinks he should be worth.
           </p>
           <SearchBox

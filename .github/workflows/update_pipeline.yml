@@ -25,6 +25,8 @@ jobs:
           pip install pandas numpy scikit-learn xgboost requests
 
       - name: Sync data and rebuild pipeline
+        env:
+          FOOTBALL_DATA_API_KEY: ${{ secrets.FOOTBALL_DATA_API_KEY || '8820cb0b1e8f410cbe65121c1cd19ebe' }}
         run: |
           python update_data.py --rebuild
 

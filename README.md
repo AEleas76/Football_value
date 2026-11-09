@@ -114,10 +114,14 @@ Powered by **XGBoost** with Tree SHAP explainability, a **FastAPI** backend, and
 ## Data Synchronization & Automation
 
 ### Syncing Data to the Present Date
-To update match records, appearances, and player valuations up to the present date:
+The sync script connects to [Football-Data.org](https://www.football-data.org/) using your personal API token (authenticated via the `X-Auth-Token` header) configured in `.env` (`FOOTBALL_DATA_API_KEY`):
+
 ```bash
 # Sync data and enforce season mappings
 python update_data.py
+
+# Or specify a token directly via CLI
+python update_data.py --token <YOUR_TOKEN>
 
 # Sync data and automatically re-run the full pipeline
 python update_data.py --rebuild

@@ -20,7 +20,7 @@ export default function App() {
           </Link>
           <nav>
             <NavLink to="/compare">Compare</NavLink>
-            <NavLink to="/stats">5-year stats</NavLink>
+            <NavLink to="/stats">Career stats</NavLink>
             <NavLink to="/seasons">Seasons</NavLink>
             <NavLink to="/gaps">Model vs market</NavLink>
           </nav>

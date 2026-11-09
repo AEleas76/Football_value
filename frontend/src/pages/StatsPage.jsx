@@ -15,8 +15,8 @@ export default function StatsPage() {
 
   return (
     <>
-      <h1>Player statistics: last 5 years</h1>
-      <p className="muted">Search a player to see every season, split by competition.</p>
+      <h1>Player statistics: full career</h1>
+      <p className="muted">Search a player to see every season of his career, split by competition.</p>
       <div className="narrow">
         <SearchBox
           variant="hero"

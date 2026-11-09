@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { getPlayerStats } from "../api";
 import { useApi } from "../hooks";
-import { money, niceStep, num, seasonLabel } from "../format";
+import { money, niceStep, num, seasonLabel, seasonShort } from "../format";
 
-function SeasonBars({ seasons, selected, onPick }) {
+function SeasonBars({ seasons, selected, onPick, compact }) {
   const W = 640, H = 230;
   const m = { l: 34, r: 12, t: 26, b: 30 };
   const maxV = Math.max(...seasons.flatMap((s) => [s.goals, s.assists]), 5);
@@ -38,7 +38,7 @@ function SeasonBars({ seasons, selected, onPick }) {
             <text className="bar-val" x={cx - bw / 2 - 2} y={y(s.goals) - 5} textAnchor="middle">{s.goals}</text>
             <rect className="bar assists" x={cx + 2} y={y(s.assists)} width={bw} height={H - m.b - y(s.assists)} rx="3" />
             <text className="bar-val" x={cx + bw / 2 + 2} y={y(s.assists) - 5} textAnchor="middle">{s.assists}</text>
-            <text className="axis" x={cx} y={H - 9} textAnchor="middle">{seasonLabel(s.season)}{s.partial ? "*" : ""}</text>
+            <text className="axis" x={cx} y={H - 9} textAnchor="middle">{compact ? seasonShort(s.season) : seasonLabel(s.season)}{s.partial ? "*" : ""}</text>
           </g>
         );
       })}
@@ -66,7 +66,7 @@ export default function FiveYearStats({ playerId }) {
         {seasons.some((s) => s.partial) && " * The current season is still in progress."}
       </p>
 
-      <SeasonBars seasons={seasons} selected={selected.season} onPick={setPicked} />
+      <SeasonBars seasons={seasons} selected={selected.season} onPick={setPicked} compact={seasons.length > 8} />
 
       <div className="table-wrap">
         <table className="table stats-table">
@@ -84,7 +84,7 @@ export default function FiveYearStats({ playerId }) {
             </tr>
           </thead>
           <tbody>
-            {seasons.map((s) => (
+            {[...seasons].reverse().map((s) => (
               <tr
                 key={s.season}
                 className={s.season === selected.season ? "row-active" : "row-click"}
@@ -107,7 +107,7 @@ export default function FiveYearStats({ playerId }) {
           </tbody>
           <tfoot>
             <tr>
-              <td colSpan={2}><b>Total ({seasons.length} seasons)</b></td>
+              <td colSpan={2}><b>Career total ({seasons.length} seasons)</b></td>
               <td className="num">{total("apps")}</td>
               <td className="num">{total("minutes").toLocaleString("en-GB")}</td>
               <td className="num">{total("goals")}</td>

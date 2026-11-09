@@ -3,7 +3,7 @@ import PlayerPhoto from "../components/PlayerPhoto.jsx";
 import SearchBox from "../components/SearchBox.jsx";
 import { comparePlayers, getPlayerStats } from "../api";
 import { useApi } from "../hooks";
-import { LEAGUES, ageFrom, cap, formatDate, gapText, money, niceStep, num, seasonLabel, signedPct } from "../format";
+import { LEAGUES, ageFrom, cap, formatDate, gapText, money, niceStep, num, seasonLabel, seasonShort, signedPct } from "../format";
 
 const ROWS = [
   ["Club", (p) => p.current_club ?? p.club],
@@ -64,7 +64,7 @@ function PairChart({ a, b, statsA, statsB }) {
             <text className="bar-val" x={cx - bw / 2 - 2} y={y(va) - 5} textAnchor="middle">{va}</text>
             <rect className="bar assists" x={cx + 2} y={y(vb)} width={bw} height={H - m.b - y(vb)} rx="3" />
             <text className="bar-val" x={cx + bw / 2 + 2} y={y(vb) - 5} textAnchor="middle">{vb}</text>
-            <text className="axis" x={cx} y={H - 9} textAnchor="middle">{seasonLabel(s)}</text>
+            <text className="axis" x={cx} y={H - 9} textAnchor="middle">{seasons.length > 8 ? seasonShort(s) : seasonLabel(s)}</text>
           </g>
         );
       })}
@@ -114,7 +114,7 @@ export default function Compare() {
   return (
     <>
       <h1>Compare players</h1>
-      <p className="muted">Pick two players to compare their profile, value and five-season output.</p>
+      <p className="muted">Pick two players to compare their profile, value and career output.</p>
       <div className="grid-2">
         <div>
           <div className="label">First player</div>
@@ -155,7 +155,7 @@ export default function Compare() {
 
           {stats && (
             <div className="card">
-              <h2>Goals + assists, last 5 seasons</h2>
+              <h2>Goals + assists, season by season</h2>
               <PairChart a={data.a.name} b={data.b.name} statsA={stats[0]} statsB={stats[1]} />
               <p className="muted small">All competitions, including cups, European games and international matches.</p>
             </div>
